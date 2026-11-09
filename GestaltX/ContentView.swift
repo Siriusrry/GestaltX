@@ -18,7 +18,6 @@ struct ContentView: View {
     @State private var previewCategory: CapabilityCategory?
     #endif
     @AppStorage("GestaltX.acceptedWelcome.v1") private var acceptedWelcome = false
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -60,9 +59,6 @@ struct ContentView: View {
         .onChange(of: acceptedWelcome) { _, accepted in
             if accepted && !isPreviewSession { Task { await autoRead() } }
         }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active && model.isRespringing { model.isRespringing = false }
-        }
         .task {
             guard !didStart else { return }
             didStart = true
@@ -76,8 +72,11 @@ struct ContentView: View {
                 selectedTab = tab
             }
             if arguments.contains("--preview-review") {
-                model.choices["pencil"] = .enable
+                if !arguments.contains("--preview-facetime-audio") { model.choices["pencil"] = .enable }
                 showsChanges = true
+            }
+            if arguments.contains("--preview-facetime-audio") {
+                model.stageFaceTimeAudio(.enable)
             }
             if let flag = arguments.firstIndex(of: "--preview-category"), arguments.indices.contains(flag + 1) {
                 previewCategory = CapabilityCategory(rawValue: arguments[flag + 1])
@@ -204,7 +203,7 @@ struct CategoryView: View {
                     Text(L("Changing the sales-region suffix may cause verification tools to report a mismatch with factory information."))
                 }
             }
-            Section(L("Presets")) {
+            Section {
                 ForEach(Capability.all.filter { $0.category == category }) { capability in
                     VStack(alignment: .leading, spacing: 4) {
                     Picker(selection: Binding(
@@ -224,11 +223,20 @@ struct CategoryView: View {
                             }
                         }
                     }.pickerStyle(.menu)
-                    if (model.choices[capability.id] ?? .keep) != .keep {
-                        Text(L(capability.effectHint)).font(.caption).foregroundStyle(.secondary)
+                    HStack(alignment: .firstTextBaseline) {
+                        if (model.choices[capability.id] ?? .keep) != .keep {
+                            Text(L(capability.effectHint)).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        Button(L("Revert")) { Task { await model.restoreCapability(capability) } }
+                            .font(.caption).buttonStyle(.borderless)
+                            .disabled(!model.canRestore(capability))
                     }
                     }
                 }
+                if category == .device { FaceTimeAudioPresetRow() }
+            } header: {
+                Text(L("Presets"))
             }
             if category == .ipad || category == .advanced {
                 Section { Text(L("Experimental settings. Back up before applying.")).font(.footnote).foregroundStyle(.secondary) }
@@ -238,6 +246,50 @@ struct CategoryView: View {
             }
         }
         .navigationTitle(L(category.rawValue)).disabled(model.isBusy)
+    }
+}
+
+struct FaceTimeAudioPresetRow: View {
+    @EnvironmentObject private var model: GestaltManager
+
+    private var support: Result<FaceTimeAudioFlags, Error> {
+        Result {
+            guard let document = model.preview else { throw GestaltFailure("Load a document first.") }
+            return try FaceTimeAudioCache.flags(in: document)
+        }
+    }
+
+    var body: some View {
+        switch support {
+        case .success:
+            VStack(alignment: .leading, spacing: 8) {
+                Picker(L("FaceTime Audio"), selection: Binding(
+                    get: { model.faceTimeAudioChoice },
+                    set: { model.stageFaceTimeAudio($0) }
+                )) {
+                    ForEach(FaceTimeAudioChoice.allCases) { choice in
+                        Text(choice.title).tag(choice)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("facetime-audio-choice")
+                HStack(alignment: .firstTextBaseline) {
+                    if model.faceTimeAudioChoice != .keep {
+                        Text(L("A device restart may be required.")).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Button(L("Revert")) { Task { await model.restoreFaceTimeAudio() } }
+                        .font(.caption).buttonStyle(.borderless)
+                        .disabled(!model.canRestoreFaceTimeAudio)
+                        .accessibilityIdentifier("facetime-audio-revert")
+                }
+            }
+        case .failure(let error):
+            VStack(alignment: .leading, spacing: 4) {
+                LabeledContent(L("FaceTime Audio")) { Text(L("Unsupported")).foregroundStyle(.secondary) }
+                Text(error.localizedDescription).font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
@@ -366,6 +418,14 @@ struct ChangeReviewView: View {
                     if let capability = Capability.all.first(where: { $0.keys.contains(key) }) {
                         Text(L(capability.effectHint)).font(.caption).foregroundStyle(.secondary)
                     }
+                }
+            }
+            ForEach(model.cacheDataChanges) { change in
+                Section {
+                    Text(verbatim: "CacheData · \(change.name)")
+                        .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    valueRow("Before", value: NSNumber(value: change.before))
+                    valueRow("After", value: NSNumber(value: change.after))
                 }
             }
             Section {

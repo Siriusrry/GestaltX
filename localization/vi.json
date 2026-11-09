@@ -276,5 +276,21 @@
   "Region Code": "Mã vùng",
   "Usually, changing the region code is enough. There is no need to change Sales Region.": "Thông thường, chỉ cần thay đổi mã vùng. Không cần đổi khu vực bán hàng.",
   "* If you previously changed Sales Region, restore your device's original sales region and apply it first.": "* Nếu trước đây bạn đã đổi khu vực bán hàng, hãy khôi phục khu vực bán hàng ban đầu của thiết bị và áp dụng trước.",
-  "Changing the sales-region suffix may cause verification tools to report a mismatch with factory information.": "Thay đổi hậu tố khu vực bán hàng có thể khiến công cụ kiểm tra báo không khớp với thông tin xuất xưởng."
+  "Changing the sales-region suffix may cause verification tools to report a mismatch with factory information.": "Thay đổi hậu tố khu vực bán hàng có thể khiến công cụ kiểm tra báo không khớp với thông tin xuất xưởng.",
+  "Disable (Restore Original)": "Tắt (khôi phục giá trị gốc)",
+  "Remove Added Fields": "Xóa các trường đã thêm",
+  "Disabling restores the recorded original values. Use Remove Added Fields only for fields you know were originally absent.": "Tắt sẽ khôi phục các giá trị gốc đã ghi lại. Chỉ dùng Xóa các trường đã thêm cho những trường mà bạn biết ban đầu không tồn tại.",
+  "Original values could not be read. No system changes were made.": "Không thể đọc bản ghi giá trị gốc. Chưa thay đổi tệp hệ thống.",
+  "The original-value record belongs to a different device.": "Bản ghi giá trị gốc thuộc về thiết bị khác.",
+  "Original values could not be saved and verified. No system write was started.": "Không thể lưu và xác minh các giá trị gốc. Chưa bắt đầu ghi tệp hệ thống.",
+  "The selected added fields must be removed before applying.": "Phải xóa các trường đã thêm được chọn trước khi áp dụng.",
+  "Initial backup": "Bản sao lưu đầu tiên",
+  "Original values snapshot": "Ảnh chụp các giá trị gốc",
+  "Revert": "Hoàn nguyên",
+  "Original values restored.": "Đã khôi phục các giá trị gốc.",
+  "FaceTime Audio": "Âm thanh FaceTime",
+  "FaceTime Audio supports iPhone 17 Pro on iOS 27.3 (24C5037i).": "Tùy chọn này hỗ trợ iPhone 17 Pro chạy iOS 27.3 (24C5037i).",
+  "The FaceTime Audio cache layout or values do not match the verified profile.": "Bố cục hoặc giá trị bộ nhớ đệm âm thanh FaceTime không khớp cấu hình đã xác minh.",
+  "The FaceTime Audio edit changes unrelated cache bytes.": "Thay đổi âm thanh FaceTime chứa các byte bộ nhớ đệm không liên quan.",
+  "FaceTime Audio flags written and verified. Restart the iPhone, then test an audio call.": "Đã ghi và xác minh các cờ âm thanh FaceTime. Hãy khởi động lại iPhone, rồi thử cuộc gọi âm thanh."
 }

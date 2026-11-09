@@ -276,5 +276,21 @@
   "Region Code": "Код региона",
   "Usually, changing the region code is enough. There is no need to change Sales Region.": "Обычно достаточно изменить код региона. Менять регион продажи не нужно.",
   "* If you previously changed Sales Region, restore your device's original sales region and apply it first.": "* Если вы ранее меняли регион продажи, сначала верните исходный регион продажи устройства и примените изменения.",
-  "Changing the sales-region suffix may cause verification tools to report a mismatch with factory information.": "Изменение суффикса региона продажи может вызвать предупреждение о несовпадении с заводскими данными в программах проверки."
+  "Changing the sales-region suffix may cause verification tools to report a mismatch with factory information.": "Изменение суффикса региона продажи может вызвать предупреждение о несовпадении с заводскими данными в программах проверки.",
+  "Disable (Restore Original)": "Отключить (вернуть исходные значения)",
+  "Remove Added Fields": "Удалить добавленные поля",
+  "Disabling restores the recorded original values. Use Remove Added Fields only for fields you know were originally absent.": "При отключении восстанавливаются записанные исходные значения. Удаляйте добавленные поля только если уверены, что изначально их не было.",
+  "Original values could not be read. No system changes were made.": "Не удалось прочитать исходные значения. Системные файлы не изменены.",
+  "The original-value record belongs to a different device.": "Запись исходных значений принадлежит другому устройству.",
+  "Original values could not be saved and verified. No system write was started.": "Не удалось сохранить и проверить исходные значения. Запись системного файла не началась.",
+  "The selected added fields must be removed before applying.": "Перед применением выбранные добавленные поля должны быть удалены.",
+  "Initial backup": "Первоначальная резервная копия",
+  "Original values snapshot": "Снимок исходных значений",
+  "Revert": "Вернуть",
+  "Original values restored.": "Исходные значения восстановлены.",
+  "FaceTime Audio": "Аудиовызовы FaceTime",
+  "FaceTime Audio supports iPhone 17 Pro on iOS 27.3 (24C5037i).": "Этот параметр поддерживает iPhone 17 Pro с iOS 27.3 (24C5037i).",
+  "The FaceTime Audio cache layout or values do not match the verified profile.": "Структура или значения кэша FaceTime Audio не соответствуют проверенному профилю.",
+  "The FaceTime Audio edit changes unrelated cache bytes.": "Изменение FaceTime Audio затрагивает посторонние байты кэша.",
+  "FaceTime Audio flags written and verified. Restart the iPhone, then test an audio call.": "Флаги FaceTime Audio записаны и проверены. Перезагрузите iPhone и проверьте аудиовызов."
 }

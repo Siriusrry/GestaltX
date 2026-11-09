@@ -22,6 +22,7 @@ final class GestaltManager: ObservableObject {
     @Published var changesName = false
     @Published var modelName = ""
     @Published var subtype = 0
+    @Published private(set) var faceTimeAudioChoice: FaceTimeAudioChoice = .keep
     private let files: GestaltFileStore
     private var exploitLogObserver: NSObjectProtocol?
 
@@ -69,18 +70,20 @@ final class GestaltManager: ObservableObject {
             }
         }.sorted()
     }
-    var changeCount: Int { changeKeys.count }
+    var cacheDataChanges: [CachedBooleanChange] {
+        guard let original = snapshot?.document, let edited = preview else { return [] }
+        return FaceTimeAudioCache.changes(from: original, to: edited)
+    }
+    var changeCount: Int { changeKeys.count + cacheDataChanges.count }
     var hasDocument: Bool { snapshot != nil }
     var sourceIsDevice: Bool { snapshot?.source == .device }
     var displayedName: String {
         working?.artwork["ArtworkDeviceProductDescription"] as? String ?? working?.extra["Z/dqyWS6OZTRy10UcmUAhw"] as? String ?? UIDevice.current.model
     }
     var preview: GestaltDocument? {
-        guard var doc = working else { return nil }
+        guard var doc = working, let snapshot else { return nil }
         for capability in Capability.all {
-            let choice = choices[capability.id] ?? .keep
-            guard choice != .keep else { continue }
-            for key in capability.keys { doc.set(choice == .enable ? capability.enabled : capability.disabled, for: key) }
+            capability.apply(choices[capability.id] ?? .keep, to: &doc, restoringFrom: snapshot)
         }
         if subtype != 0 {
             doc.setArtwork(NSNumber(value: subtype), for: "ArtworkDeviceSubType")
@@ -105,10 +108,99 @@ final class GestaltManager: ObservableObject {
     private func accept(_ loaded: DocumentSnapshot) {
         snapshot = loaded; working = loaded.document
         choices = [:]; regionID = "keep"; regionCodeID = "keep"; changesName = false; subtype = 0
+        faceTimeAudioChoice = .keep
         modelName = loaded.document.artwork["ArtworkDeviceProductDescription"] as? String ?? ""
     }
     func clearStaged() {
         if let snapshot { accept(snapshot) }
+    }
+
+    func stageFaceTimeAudio(_ choice: FaceTimeAudioChoice) {
+        guard !isBusy, var document = working, let snapshot else { return }
+        do {
+            let flags: FaceTimeAudioFlags
+            switch choice {
+            case .keep: flags = try FaceTimeAudioCache.flags(in: snapshot.document)
+            case .enable: flags = .enabled
+            case .restoreOriginal: flags = try snapshot.originalFaceTimeAudioFlags()
+            }
+            try document.setFaceTimeAudio(flags)
+            working = document
+            faceTimeAudioChoice = choice
+        } catch { failed(error) }
+    }
+
+    var canRestoreFaceTimeAudio: Bool {
+        guard !isBusy, let snapshot, let working,
+              let original = try? snapshot.originalFaceTimeAudioFlags(),
+              let current = try? FaceTimeAudioCache.flags(in: working) else { return false }
+        return faceTimeAudioChoice != .keep || current != original
+    }
+
+    func restoreFaceTimeAudio() async {
+        guard !isBusy, let before = snapshot, let pending = working else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            var restored = before.document
+            try restored.setFaceTimeAudio(before.originalFaceTimeAudioFlags())
+            let result: DocumentSnapshot
+            if restored.matches(before.document) {
+                result = before
+            } else {
+                logChanges(from: before.document, to: restored, prefix: "[restore-facetime] ")
+                result = try await files.commit(restored, expected: before)
+                needsRespring = result.source == .device
+                message = L(result.source == .device
+                            ? "FaceTime Audio flags written and verified. Restart the iPhone, then test an audio call."
+                            : "Local changes saved. Export the plist to keep a copy.")
+            }
+            snapshot = result
+            working = before.rebasingPendingEdits(pending, onto: result.document, excluding: [], preservingCacheData: false)
+            faceTimeAudioChoice = .keep
+            log("[restore-facetime] " + L("Original values restored."))
+            await reloadBackups()
+        } catch { failed(error); await reloadBackups() }
+    }
+
+    func canRestore(_ capability: Capability) -> Bool {
+        guard !isBusy, let snapshot, let working else { return false }
+        if (choices[capability.id] ?? .keep) != .keep { return true }
+        if capability.id == "dynamicIsland" && subtype != 0 { return true }
+        return capability.keys.contains { key in
+            switch (snapshot.originalValue(for: key), working.extra[key]) {
+            case (nil, nil): false
+            case (let a?, let b?): !GestaltDocument.valuesEqual(a, b)
+            default: true
+            }
+        }
+    }
+
+    func restoreCapability(_ capability: Capability) async {
+        guard !isBusy, let before = snapshot, let pending = working else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            var restored = before.document
+            let removesAdded = choices[capability.id] == .removeAdded
+            let absentKeys = removesAdded ? Set(capability.keys) : Set<String>()
+            capability.apply(removesAdded ? .removeAdded : .disable, to: &restored, restoringFrom: before)
+            let result: DocumentSnapshot
+            if restored.matches(before.document) && absentKeys.isEmpty {
+                result = before
+            } else {
+                for line in diffLines(before.document.extra, restored.extra) { log("[restore-field] " + line) }
+                result = try await files.commit(restored, expected: before, originallyAbsentKeys: absentKeys)
+                needsRespring = result.source == .device
+                message = L(result.source == .device ? "Original values restored." : "Local changes saved. Export the plist to keep a copy.")
+            }
+            snapshot = result
+            working = before.rebasingPendingEdits(pending, onto: result.document, excluding: Set(capability.keys))
+            choices[capability.id] = .keep
+            if capability.id == "dynamicIsland" { subtype = 0 }
+            log("[restore-field] " + L(capability.title) + ": " + L("Original values restored."))
+            await reloadBackups()
+        } catch { failed(error); await reloadBackups() }
     }
     func clearLog() { logs = [] }
 
@@ -152,6 +244,13 @@ final class GestaltManager: ObservableObject {
         }
         if let product = document.extra[GestaltKeys.productType] as? String { lines.append("product type: \(product)") }
         return lines
+    }
+
+    private func logChanges(from original: GestaltDocument, to edited: GestaltDocument, prefix: String) {
+        for line in diffLines(original.root, edited.root) { log(prefix + line) }
+        for change in FaceTimeAudioCache.changes(from: original, to: edited) {
+            log(prefix + "CacheData.\(change.name) @\(String(format: "0x%X", change.offset)): \(change.before) → \(change.after)")
+        }
     }
 
     func connect(showErrorAlert: Bool = true) async {
@@ -218,11 +317,15 @@ final class GestaltManager: ObservableObject {
         defer { isBusy = false }
         do {
             log("[apply] source=\(snapshot.source.rawValue) fields=\(changeCount)")
-            for line in diffLines(snapshot.document.extra, edited.extra) { log("[diff] " + line) }
-            let result = try await files.commit(edited, expected: snapshot)
+            logChanges(from: snapshot.document, to: edited, prefix: "[diff] ")
+            let absentKeys = Set(Capability.all.filter { choices[$0.id] == .removeAdded }.flatMap(\.keys))
+            let result = try await files.commit(edited, expected: snapshot, originallyAbsentKeys: absentKeys)
             accept(result); needsRespring = result.source == .device
             status = result.source == .device ? "Changes verified on device" : "Local changes saved"
-            message = L(result.source == .device ? "Write verified. Some features require a device restart." : "Local changes saved. Export the plist to keep a copy.")
+            let changedFaceTimeAudio = !FaceTimeAudioCache.changes(from: snapshot.document, to: edited).isEmpty
+            message = L(result.source == .device
+                        ? (changedFaceTimeAudio ? "FaceTime Audio flags written and verified. Restart the iPhone, then test an audio call." : "Write verified. Some features require a device restart.")
+                        : "Local changes saved. Export the plist to keep a copy.")
             log(L(status)); await reloadBackups()
         } catch { failed(error); await reloadBackups() }
     }
@@ -243,7 +346,7 @@ final class GestaltManager: ObservableObject {
             let data = try await files.backupData(record)
             let restored = try GestaltDocument(data: data)
             log("[restore] \(record.filename) · \(record.byteCount) bytes · reason=\(record.reason)")
-            for line in diffLines(snapshot.document.extra, restored.extra) { log("[restore-diff] " + line) }
+            logChanges(from: snapshot.document, to: restored, prefix: "[restore-diff] ")
             let result = try await files.commit(restored, expected: snapshot, restoring: record)
             accept(result); needsRespring = result.source == .device
             message = L(result.source == .device ? "Backup restored and verified." : "Backup opened as a local document.")

@@ -276,5 +276,21 @@
   "Region Code": "地區代碼",
   "Usually, changing the region code is enough. There is no need to change Sales Region.": "通常只需修改地區代碼，毋須更改銷售地區。",
   "* If you previously changed Sales Region, restore your device's original sales region and apply it first.": "* 之前修改過銷售地區的用戶，請先改回裝置原本的銷售地區並套用。",
-  "Changing the sales-region suffix may cause verification tools to report a mismatch with factory information.": "更改銷售地區後綴可能導致驗機工具提示與出廠資料不符。"
+  "Changing the sales-region suffix may cause verification tools to report a mismatch with factory information.": "更改銷售地區後綴可能導致驗機工具提示與出廠資料不符。",
+  "Disable (Restore Original)": "停用（還原原值）",
+  "Remove Added Fields": "移除新增欄位",
+  "Disabling restores the recorded original values. Use Remove Added Fields only for fields you know were originally absent.": "停用會還原已記錄的原值。只對確認原本不存在的欄位使用「移除新增欄位」。",
+  "Original values could not be read. No system changes were made.": "無法讀取原值記錄，未修改系統檔案。",
+  "The original-value record belongs to a different device.": "原值記錄屬於其他裝置。",
+  "Original values could not be saved and verified. No system write was started.": "無法儲存並驗證原值記錄，尚未開始寫入系統檔案。",
+  "The selected added fields must be removed before applying.": "請先移除已選取的新增欄位，再套用更改。",
+  "Initial backup": "首次備份",
+  "Original values snapshot": "修改前原值快照",
+  "Revert": "還原",
+  "Original values restored.": "已還原原值。",
+  "FaceTime Audio": "FaceTime 音訊",
+  "FaceTime Audio supports iPhone 17 Pro on iOS 27.3 (24C5037i).": "此選項支援執行 iOS 27.3（24C5037i）的 iPhone 17 Pro。",
+  "The FaceTime Audio cache layout or values do not match the verified profile.": "FaceTime 音訊快取的配置或數值與已驗證設定不符。",
+  "The FaceTime Audio edit changes unrelated cache bytes.": "FaceTime 音訊更改包含無關的快取位元組。",
+  "FaceTime Audio flags written and verified. Restart the iPhone, then test an audio call.": "FaceTime 音訊標記已寫入並驗證。請重新啟動 iPhone，再測試音訊通話。"
 }

@@ -43,7 +43,17 @@ struct Capability: Identifiable {
         }
     }
     var enabled: Any { id == "ipadApps" ? [1, 2] : NSNumber(value: 1) }
-    var disabled: Any { id == "ipadApps" ? [1] : NSNumber(value: 0) }
+    func apply(_ choice: PresetChoice, to document: inout GestaltDocument, restoringFrom snapshot: DocumentSnapshot) {
+        guard choice != .keep else { return }
+        for key in keys {
+            switch choice {
+            case .keep: break
+            case .enable: document.set(enabled, for: key)
+            case .disable: document.set(snapshot.originalValue(for: key), for: key)
+            case .removeAdded: document.set(nil, for: key)
+            }
+        }
+    }
     static let all: [Self] = [
         .init(id: "dynamicIsland", category: .display, title: "Dynamic Island", detail: "Enable the alternate Dynamic Island capability.", keys: ["YlEtTtHlNesRBMal1CqRaA"]),
         .init(id: "aod", category: .display, title: "Always-On Display", detail: "Display behavior depends on the panel. May increase power use and burn-in risk.", keys: ["2OOJf1VhaM7NxfRok3HbWQ", "j8/Omm6s1lsmTDFsXjsBfA"], caution: true),
@@ -65,10 +75,15 @@ struct Capability: Identifiable {
 }
 
 enum PresetChoice: Int, CaseIterable, Identifiable {
-    case keep, enable, disable
+    case keep, enable, disable, removeAdded
     var id: Int { rawValue }
     var title: String {
-        switch self { case .keep: "Keep Current"; case .enable: "Enable"; case .disable: "Disable" }
+        switch self {
+        case .keep: "Keep Current"
+        case .enable: "Enable"
+        case .disable: "Disable (Restore Original)"
+        case .removeAdded: "Remove Added Fields"
+        }
     }
 }
 

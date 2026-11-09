@@ -69,6 +69,13 @@ More	更多
 Ready	就绪
 Enable	启用
 Disable	停用
+Disable (Restore Original)	停用（恢复原值）
+Remove Added Fields	移除新增字段
+Disabling restores the recorded original values. Use Remove Added Fields only for fields you know were originally absent.	停用会恢复已记录的原值。确认原本不存在的字段，才使用“移除新增字段”。
+Original values could not be read. No system changes were made.	无法读取原值记录，未修改系统文件。
+The original-value record belongs to a different device.	原值记录属于其他设备。
+Original values could not be saved and verified. No system write was started.	无法保存并验证原值记录，未开始写入系统文件。
+The selected added fields must be removed before applying.	请先移除选中的新增字段，再应用更改。
 Keep Current	保持当前值
 Display	显示
 Device	设备
@@ -166,6 +173,10 @@ Local File Backup	本地文件备份
 Open	打开
 Export	导出
 Restore	恢复
+Initial backup	首次备份
+Original values snapshot	修改前原值快照
+Revert	还原
+Original values restored.	已还原原值。
 Restore this backup?	恢复这个备份？
 The current document is backed up first. Device restores are verified after writing.	会先备份当前文稿。本机恢复会在写入后进行验证。
 Delete this backup?	删除这个备份？
@@ -286,6 +297,11 @@ Respring did not finish.	注销未完成。
 Refreshing SpringBoard…	正在刷新 SpringBoard…
 This OS build may not support the technique. You can close this screen and try a manual restart later.	当前系统版本可能不支持此方法。你可以关闭此页面，稍后手动重新启动设备。
 Your device may briefly return to the Lock Screen.	设备可能会短暂返回锁定屏幕。
+FaceTime Audio	FaceTime 音频
+FaceTime Audio supports iPhone 17 Pro on iOS 27.3 (24C5037i).	此选项支持运行 iOS 27.3（24C5037i）的 iPhone 17 Pro。
+The FaceTime Audio cache layout or values do not match the verified profile.	FaceTime 音频缓存的布局或数值与已验证配置不符。
+The FaceTime Audio edit changes unrelated cache bytes.	FaceTime 音频更改包含无关的缓存字节。
+FaceTime Audio flags written and verified. Restart the iPhone, then test an audio call.	FaceTime 音频标记已写入并验证。请重新启动 iPhone，再测试音频通话。
 '''
 entries = {}
 for line in TRANSLATIONS.strip().splitlines():
