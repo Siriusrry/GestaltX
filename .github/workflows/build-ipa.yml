@@ -2,6 +2,9 @@ name: Build audited IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - wallet-probe
 
 permissions:
   contents: read
@@ -9,11 +12,10 @@ permissions:
   attestations: write
 
 concurrency:
-  group: audited-ipa
+  group: wallet-probe-ipa
   cancel-in-progress: false
 
 env:
-  SOURCE_COMMIT: 53d45ce7ce6c75bf72ee646427fcc0a05f0405b2
   DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
 
 jobs:
@@ -21,36 +23,42 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 25
     steps:
-      - name: Check out audited source
+      - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ env.SOURCE_COMMIT }}
           persist-credentials: false
 
       - name: Verify source and toolchain
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$(git status --porcelain)"
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
-      - name: Verify document transactions and embedded JavaScript
+      - name: Run WalletProbe unit and redaction tests
         shell: bash
         run: |
           set -euo pipefail
-          swiftc -parse-as-library GestaltX/GestaltDocument.swift GestaltX/Capabilities.swift GestaltX/FaceTimeAudioCache.swift tests/DocumentTests.swift -o "$RUNNER_TEMP/DocumentTests"
-          "$RUNNER_TEMP/DocumentTests"
-          node scripts/verify_respring.mjs
+          xcrun --sdk macosx clang \
+            -fobjc-arc \
+            -Wall -Wextra -Wno-unused-parameter -Werror \
+            -framework Foundation \
+            WalletProbe/ProbeFS.m \
+            WalletProbe/WQAccess.m \
+            WalletProbe/ProbeRunner.m \
+            tests/WalletProbeTests.m \
+            -o "$RUNNER_TEMP/WalletProbeTests"
+          "$RUNNER_TEMP/WalletProbeTests"
 
-      - name: Build unsigned device application
+      - name: Build unsigned WalletProbe application
         shell: bash
         run: |
           set -euo pipefail
           xcodebuild \
-            -project GestaltX.xcodeproj \
-            -scheme GestaltX \
+            -project WalletProbe.xcodeproj \
+            -scheme WalletProbe \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
@@ -69,19 +77,19 @@ jobs:
           set -euo pipefail
           test -z "$(git status --porcelain)"
           mkdir -p "$RUNNER_TEMP/ipa-staging/Payload" "$ARTIFACT_DIR"
-          ditto "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/GestaltX.app" "$RUNNER_TEMP/ipa-staging/Payload/GestaltX.app"
-          ditto -c -k --keepParent "$RUNNER_TEMP/ipa-staging/Payload" "$ARTIFACT_DIR/GestaltX-1.0.2-main-53d45ce-unsigned.ipa"
+          ditto "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/WalletProbe.app" "$RUNNER_TEMP/ipa-staging/Payload/WalletProbe.app"
+          ditto -c -k --keepParent "$RUNNER_TEMP/ipa-staging/Payload" "$ARTIFACT_DIR/WalletProbe-0.1.0-unsigned.ipa"
           python3 - <<'PY'
           import hashlib, json, os, pathlib, subprocess, zipfile
           out = pathlib.Path(os.environ["ARTIFACT_DIR"])
           def command(*args):
               return subprocess.check_output(args, text=True).strip()
           source = command("git", "rev-parse", "HEAD")
-          assert source == os.environ["SOURCE_COMMIT"]
+          assert source == os.environ["GITHUB_SHA"]
           ipa = next(out.glob("*.ipa"))
           with zipfile.ZipFile(ipa) as archive:
-              assert "Payload/GestaltX.app/GestaltX" in archive.namelist()
-              assert "Payload/GestaltX.app/Info.plist" in archive.namelist()
+              assert "Payload/WalletProbe.app/WalletProbe" in archive.namelist()
+              assert "Payload/WalletProbe.app/Info.plist" in archive.namelist()
           paths = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
           records = []
           for raw_path in paths:
@@ -90,7 +98,7 @@ jobs:
                   records.append(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.as_posix())
           (out / "source-files.sha256").write_text("\n".join(records) + "\n")
           metadata = {
-              "upstream_repository": "https://github.com/huamidev/GestaltX",
+              "app": "WalletProbe",
               "source_commit": source,
               "source_tree": command("git", "rev-parse", "HEAD^{tree}"),
               "workflow_repository": os.environ["GITHUB_REPOSITORY"],
@@ -100,8 +108,9 @@ jobs:
               "xcode": command("xcodebuild", "-version"),
               "iphoneos_sdk": command("xcrun", "--sdk", "iphoneos", "--show-sdk-version"),
               "configuration": "Release",
-              "signature": "unsigned; requires re-signing with a usable App Group before installation",
-              "device_compatibility": "not tested on this iPad; user reports iPadOS 27.3 beta compatibility",
+              "bundle_id": "com.siriusrry.walletprobe",
+              "dedicated_group": "group.com.siriusrry.walletprobe",
+              "signature": "unsigned; requires local re-signing with dedicated App Group before installation",
               "ipa_sha256": hashlib.sha256(ipa.read_bytes()).hexdigest()
           }
           (out / "build-info.json").write_text(json.dumps(metadata, indent=2) + "\n")
@@ -118,7 +127,7 @@ jobs:
       - name: Upload IPA and build records
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: GestaltX-1.0.2-main-53d45ce-unsigned
+          name: WalletProbe-0.1.0-unsigned
           path: ${{ runner.temp }}/artifacts/
           if-no-files-found: error
           retention-days: 7
