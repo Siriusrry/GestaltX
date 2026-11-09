@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SOURCE_COMMIT: 5bfb98a374aef35e3709a6d2023ca39bf8be46ad
+  SOURCE_COMMIT: 53d45ce7ce6c75bf72ee646427fcc0a05f0405b2
   DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
 
 jobs:
@@ -40,7 +40,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swiftc -parse-as-library GestaltX/GestaltDocument.swift GestaltX/Capabilities.swift tests/DocumentTests.swift -o "$RUNNER_TEMP/DocumentTests"
+          swiftc -parse-as-library GestaltX/GestaltDocument.swift GestaltX/Capabilities.swift GestaltX/FaceTimeAudioCache.swift tests/DocumentTests.swift -o "$RUNNER_TEMP/DocumentTests"
           "$RUNNER_TEMP/DocumentTests"
           node scripts/verify_respring.mjs
 
@@ -70,7 +70,7 @@ jobs:
           test -z "$(git status --porcelain)"
           mkdir -p "$RUNNER_TEMP/ipa-staging/Payload" "$ARTIFACT_DIR"
           ditto "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/GestaltX.app" "$RUNNER_TEMP/ipa-staging/Payload/GestaltX.app"
-          ditto -c -k --keepParent "$RUNNER_TEMP/ipa-staging/Payload" "$ARTIFACT_DIR/GestaltX-1.0.1-5bfb98a-unsigned.ipa"
+          ditto -c -k --keepParent "$RUNNER_TEMP/ipa-staging/Payload" "$ARTIFACT_DIR/GestaltX-1.0.2-main-53d45ce-unsigned.ipa"
           python3 - <<'PY'
           import hashlib, json, os, pathlib, subprocess, zipfile
           out = pathlib.Path(os.environ["ARTIFACT_DIR"])
@@ -101,7 +101,7 @@ jobs:
               "iphoneos_sdk": command("xcrun", "--sdk", "iphoneos", "--show-sdk-version"),
               "configuration": "Release",
               "signature": "unsigned; requires re-signing with a usable App Group before installation",
-              "device_compatibility": "not tested; worse_query upstream only claims support through iOS 27.2",
+              "device_compatibility": "not tested on this iPad; user reports iPadOS 27.3 beta compatibility",
               "ipa_sha256": hashlib.sha256(ipa.read_bytes()).hexdigest()
           }
           (out / "build-info.json").write_text(json.dumps(metadata, indent=2) + "\n")
@@ -118,7 +118,7 @@ jobs:
       - name: Upload IPA and build records
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: GestaltX-1.0.1-5bfb98a-unsigned
+          name: GestaltX-1.0.2-main-53d45ce-unsigned
           path: ${{ runner.temp }}/artifacts/
           if-no-files-found: error
           retention-days: 7
