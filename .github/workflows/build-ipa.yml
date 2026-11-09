@@ -1,0 +1,133 @@
+name: Build audited IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: audited-ipa
+  cancel-in-progress: false
+
+env:
+  SOURCE_COMMIT: 5bfb98a374aef35e3709a6d2023ca39bf8be46ad
+  DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 25
+    steps:
+      - name: Check out audited source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Verify source and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -z "$(git status --porcelain)"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Verify document transactions and embedded JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          swiftc -parse-as-library GestaltX/GestaltDocument.swift GestaltX/Capabilities.swift tests/DocumentTests.swift -o "$RUNNER_TEMP/DocumentTests"
+          "$RUNNER_TEMP/DocumentTests"
+          node scripts/verify_respring.mjs
+
+      - name: Build unsigned device application
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project GestaltX.xcodeproj \
+            -scheme GestaltX \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -disableAutomaticPackageResolution \
+            -skipPackageUpdates \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Package IPA and record build inputs
+        shell: bash
+        env:
+          ARTIFACT_DIR: ${{ runner.temp }}/artifacts
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          mkdir -p "$RUNNER_TEMP/ipa-staging/Payload" "$ARTIFACT_DIR"
+          ditto "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/GestaltX.app" "$RUNNER_TEMP/ipa-staging/Payload/GestaltX.app"
+          ditto -c -k --keepParent "$RUNNER_TEMP/ipa-staging/Payload" "$ARTIFACT_DIR/GestaltX-1.0.1-5bfb98a-unsigned.ipa"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess, zipfile
+          out = pathlib.Path(os.environ["ARTIFACT_DIR"])
+          def command(*args):
+              return subprocess.check_output(args, text=True).strip()
+          source = command("git", "rev-parse", "HEAD")
+          assert source == os.environ["SOURCE_COMMIT"]
+          ipa = next(out.glob("*.ipa"))
+          with zipfile.ZipFile(ipa) as archive:
+              assert "Payload/GestaltX.app/GestaltX" in archive.namelist()
+              assert "Payload/GestaltX.app/Info.plist" in archive.namelist()
+          paths = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          records = []
+          for raw_path in paths:
+              if raw_path:
+                  path = pathlib.Path(os.fsdecode(raw_path))
+                  records.append(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.as_posix())
+          (out / "source-files.sha256").write_text("\n".join(records) + "\n")
+          metadata = {
+              "upstream_repository": "https://github.com/huamidev/GestaltX",
+              "source_commit": source,
+              "source_tree": command("git", "rev-parse", "HEAD^{tree}"),
+              "workflow_repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow_commit": os.environ["GITHUB_SHA"],
+              "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
+              "run_url": os.environ["GITHUB_SERVER_URL"] + "/" + os.environ["GITHUB_REPOSITORY"] + "/actions/runs/" + os.environ["GITHUB_RUN_ID"],
+              "xcode": command("xcodebuild", "-version"),
+              "iphoneos_sdk": command("xcrun", "--sdk", "iphoneos", "--show-sdk-version"),
+              "configuration": "Release",
+              "signature": "unsigned; requires re-signing with a usable App Group before installation",
+              "device_compatibility": "not tested; worse_query upstream only claims support through iOS 27.2",
+              "ipa_sha256": hashlib.sha256(ipa.read_bytes()).hexdigest()
+          }
+          (out / "build-info.json").write_text(json.dumps(metadata, indent=2) + "\n")
+          PY
+          cp "$RUNNER_TEMP/build.log" "$ARTIFACT_DIR/build.log"
+          cd "$ARTIFACT_DIR"
+          shasum -a 256 *.ipa build-info.json source-files.sha256 build.log > SHA256SUMS
+
+      - name: Attest IPA build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: ${{ runner.temp }}/artifacts/*.ipa
+
+      - name: Upload IPA and build records
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: GestaltX-1.0.1-5bfb98a-unsigned
+          path: ${{ runner.temp }}/artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: failed-build-log
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
+          retention-days: 3
